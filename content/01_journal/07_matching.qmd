@@ -2,6 +2,115 @@
 title: "Matching and Subclassification"
 ---
 
-::: callout-note
-You can delete everything in here and start fresh.
-:::
+```{r}
+# Load packages
+library(tidyverse)
+library(dagitty)
+library(ggdag)
+```
+```{r}
+# Load the file
+membership <- readRDS("Causal_Data_Science_Data/membership.rds")
+# Create a Data Frame
+df=data.frame(membership)
+head(df)
+summary(df)
+```
+```{r}
+# 1. Draw DAG
+# Confounding variables are age, sex, prev_avg_purch
+
+purchase_dag <- dagify(
+  card  ~ age + sex + prev_avg_purch, sex ~ age , prev_avg_purch ~ sex, avg_purch ~ card ,
+  coords = list(x = c(age = 1,sex = 2, prev_avg_purch = 3, card = 1.5, avg_purch = 2.5),
+                      y = c(age = 1,sex = 1, prev_avg_purch = 1, card = 2, avg_purch = 2)  )
+)
+
+ggdag(purchase_dag, use_labels = "name", text = F) + theme_dag()
+```
+Sales are described by average purchases and they depend on the membership cards directly, but as a back door path, they also depend on age, sex, and previous average purchase. Hence, the arrows are indicated accordingly.
+```{r}
+# 2. Naive estimation
+
+model_naive <- lm(card ~ avg_purch, data = df)
+summary(model_naive)
+```
+```{r}
+# Subclassification estimator (subclasses: Z = 0 and Z = 1)
+# E(Z, D)
+E_00 <- mean(df[(df$sex==F & df$card==F), ]$avg_purch) 
+E_10 <- mean(df[(df$sex==T & df$card==F), ]$avg_purch) 
+E_01 <- mean(df[(df$sex==F & df$card==T), ]$avg_purch) 
+E_11 <- mean(df[(df$sex==T & df$card==T), ]$avg_purch) 
+
+# Weighted by K (proportion of female/male)
+K <- mean(df$sex)
+
+K*(E_11-E_10) + (1-K)*(E_01 - E_00)
+```
+
+```{r}
+# 3.1 Coarsened exact matching
+# Load 'MatchIt' library
+library(MatchIt)
+
+# Without specifying coarsening
+# (1) Matching
+cem <- matchit(card ~ age + avg_purch,
+               data = df, 
+               method = 'cem', 
+               estimand = 'ATE')
+summary(cem)
+```
+```{r}
+# 3.2 Nearest neighbour matching
+# (1) Matching
+
+nn <- matchit(card ~ age + avg_purch,
+              data = df,
+              method = "nearest",
+              distance = "mahalanobis",
+              )
+
+# Covariate Balance
+summary(nn)
+```
+```{r}
+# 3.3 Inverse probability weighting
+
+# (1) Propensity scores
+model_prop <- glm(card ~ age + avg_purch,
+                  data = df,
+                  family = binomial(link = "logit"))
+summary(model_prop)
+```
+
+```{r}
+# Add propensities to table
+df_aug <- df %>% mutate(propensity = predict(model_prop, type = "response"))
+```
+
+```{r}
+# Extend data by IPW scores
+df_ipw <- df_aug %>% mutate(
+  ipw = (card/propensity) + ((1-card) / (1-propensity)))
+
+# Look at data with IPW scores
+df_ipw %>% 
+  select(card, age, avg_purch , propensity, ipw)
+```
+```{r}
+# (2) Estimation
+model_ipw <- lm(card ~ avg_purch,
+                data = df_ipw, 
+                weights = ipw)
+summary(model_ipw)
+```
+
+
+
+
+
+
+
+
