@@ -2,6 +2,75 @@
 title: "Difference-in-Differences"
 ---
 
-::: callout-note
-You can delete everything in here and start fresh.
-:::
+```{r}
+library(tidyverse)
+library(dplyr)
+```
+```{r}
+# Load the file
+hospdd <- readRDS("Causal_Data_Science_Data/hospdd.rds")
+# Create a Data Frame
+df=data.frame(hospdd)
+head(df)
+glimpse(df)
+```
+```{r}
+# Convert month to a numeric variable
+df$month <- as.numeric(as.character(df$month))
+# Create a binary indicator for the post-treatment period
+df$post_treatment <- ifelse(df$month >= 4, 1, 0)  # Assuming treatment occurred after month 3
+# Function to calculate mean manually
+calculate_manual_mean <- function(x) {
+  if (length(x) == 0) {
+    return(NA)  # Return NA if there are no observations
+  }
+  sum_value <- sum(x)
+  count_value <- length(x)
+  return(sum_value / count_value)
+}
+
+# Calculate mean satisfaction for treated and controlled hospitals before  treatment
+mean_satisfaction_treated_before <- df %>%
+  filter(procedure == 1, post_treatment == 0) %>%
+  pull(satis) %>%
+  calculate_manual_mean()
+
+mean_satisfaction_treated_after <- df %>%
+  filter(procedure == 1, post_treatment == 1) %>%
+  pull(satis) %>%
+  calculate_manual_mean()
+
+# Calculate mean satisfaction for control hospitals before and after the treatment
+mean_satisfaction_control_before <- df %>%
+  filter(procedure == 0, post_treatment == 0) %>%
+  pull(satis) %>%
+  calculate_manual_mean()
+
+mean_satisfaction_control_after <- df %>%
+  filter(procedure == 0, post_treatment == 1) %>%
+  pull(satis) %>%
+  calculate_manual_mean()
+
+# Print the results
+cat("Mean Satisfaction for Treated Hospitals Before Treatment:", mean_satisfaction_treated_before, "\n")
+cat("Mean Satisfaction for Treated Hospitals After Treatment:", mean_satisfaction_treated_after, "\n")
+cat("Mean Satisfaction for Control Hospitals Before Treatment:", mean_satisfaction_control_before, "\n")
+cat("Mean Satisfaction for Control Hospitals After Treatment:", mean_satisfaction_control_after, "\n")
+
+
+```
+
+```{r}
+# 2.1 Linear regression 
+lm_satis <- lm(procedure ~ month + hospital, data = df)
+summary(lm_satis)
+```
+```{r}
+# 2.2 Linear regression using the factor function
+lm_satis <- lm(procedure ~ as.factor(month) + as.factor(hospital), data = df)
+summary(lm_satis)
+```
+
+
+
+
