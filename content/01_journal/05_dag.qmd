@@ -10,32 +10,44 @@ author: "Shashidhar Cheeti"
 library(tidyverse)
 library(dagitty)
 library(ggdag)
+library(ggrepel)
 ```
+
 1. DAG for Parking Spots
 ```{r}
-Parkingspots <- dagify(
-  ParkingSpots ~ Location,
-  Sales ~ Location,
-  Sales ~ ParkingSpots,
-  coords = list(x = c(Sales = 3, Location = 2, ParkingSpots = 1),
-                y = c(Sales = 0, Location = 1, ParkingSpots = 0))
+Parking_Spots <- dagify(
+  Y ~ X,
+  X ~ Z,
+  Y ~ Z,
+  coords = list(x = c(Y = 3, Z = 2, X = 1),
+                y = c(Y = 0, Z = 1, X = 0)),
+  labels = c("X" = "ParkingSpots",
+             "Y" = "Sales",
+             "Z" = "Location")
 )
-# Plot DAG
-ggdag(Parkingspots, use_labels = "name", text =  F) + theme_dag()
+
+ggdag(Parking_Spots, text = TRUE) +
+  geom_dag_point(color = "blue") +
+  geom_dag_text(color = "white") +
+  geom_dag_edges(edge_color = "black") +
+  geom_dag_label_repel(aes(label = label))
 ```
+
 2. Regression
 ```{r}
 # Load the file
-car_prices <- readRDS("Causal_Data_Science_Data/customer_sat.rds")
+customer_sat <- readRDS("Causal_Data_Science_Data/customer_sat.rds")
 # Create a Data Frame
-df=data.frame(car_prices)
+df=data.frame(customer_sat)
 ```
+
 2.1 Regress satisfaction on follow_ups 
 ```{r}
 #lm_2_1 is the regresssion of satisfaction on follow_ups
 lm_2_1 <- lm(satisfaction ~ follow_ups , data = df)
 summary(lm_2_1)
 ```
+
 2.2 Regress satisfaction on follow_ups and account for subscription
 ```{r}
 #lm_2_2 is the regresssion of satisfaction on follow_ups and account for subscription
@@ -43,14 +55,13 @@ lm_2_2 <- lm(satisfaction ~ follow_ups + subscription , data = df)
 summary(lm_2_2)
 ```
 
-
-3 Comparing the coefficients: 
+3. Comparing the coefficients: 
 
 In the first regression with satisfaction on follow_ups are negatively correlated as increase in satisfaction with the product and service will decrease the follow_up calls to the clients.
 
 In the second regression with satisfaction on follow_ups and account for subscription is highly correlated premium subscription levels than elite subscription levels.
 
-4 Plot the data
+4. Plot the data
 ```{r}
 # Not conditioning on subscription
 subscription_not_cond <- ggplot(df, aes(x = satisfaction, y = follow_ups)) +

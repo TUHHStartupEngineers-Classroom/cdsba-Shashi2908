@@ -9,22 +9,23 @@ library(dplyr)
 library(ggdag)
 library(dagitty)
 ```
+
 ```{r}
 # Load the file
 coupon<- readRDS("Causal_Data_Science_Data/coupon.rds")
 # Create a Data Frame
 df=data.frame(coupon)
-head(df)
-glimpse(df)
 ```
 
 ```{r}
+# Define cut-off
 c0 = 60
+# Half bandwidth
 bw <- c0 + c(-2.5, 2.5)
 
 # Subsets below and above threshold in specified bandwidth
-df_bw_below <- df %>% filter(days_since_last >= bw[1] & days_since_last < c0)
-df_bw_above <- df %>% filter(days_since_last >= c0 & days_since_last <= bw[2])
+df_bw_below <- df %>% filter(days_since_last %>% between(bw[1], c0-1e-4))
+df_bw_above <- df %>% filter(days_since_last %>% between(c0, bw[2]))
 
 # Alternative way to define tables
 # df_bw_below <- df %>% filter(days_since_last >= bw[1], days_since_last  < c0)
@@ -35,12 +36,14 @@ dim(df_bw)
 ```
 
 ```{r}
+# Define cut-off
 c0 = 60
+# Double bandwidth
 bw <- c0 + c(-10, 10)
 
 # Subsets below and above threshold in specified bandwidth
-df_bw_below <- df %>% filter(days_since_last >= bw[1] & days_since_last < c0)
-df_bw_above <- df %>% filter(days_since_last >= c0 & days_since_last <= bw[2])
+df_bw_below <- df %>% filter(days_since_last %>% between(bw[1], c0-1e-4))
+df_bw_above <- df %>% filter(days_since_last %>% between(c0, bw[2]))
 
 # Alternative way to define tables
 # df_bw_below <- df %>% filter(days_since_last >= bw[1], days_since_last  < c0)
@@ -48,6 +51,13 @@ df_bw_above <- df %>% filter(days_since_last >= c0 & days_since_last <= bw[2])
 
 df_bw <- bind_rows(df_bw_above, df_bw_below)
 dim(df_bw)
+```
+
+```{r}
+# Load the file
+shipping<- readRDS("Causal_Data_Science_Data/shipping.rds")
+# Create a Data Frame
+df2=data.frame(shipping)
 ```
 
 ```{r}
@@ -55,14 +65,14 @@ dim(df_bw)
 # Check for continuous density along running variable. Manipulations could 
 # lead to running variable being "crowded" right after cutoff.
 library(rddensity)
-rddd <- rddensity(df$days_since_last, c = 30)
+rddd <- rddensity(df2$purchase_amount, c = 30)
 summary(rddd)
 ```
 
 ```{r}
 # Visually check continuity at running variable
-rdd_plot <- rdplotdensity(rddd, df$days_since_last, plotN = 100)
+rdd_plot <- rdplotdensity(rddd, df2$purchase_amount, plotN = 100)
 ```
 
-
+The plot confirms as they did not overlap, we would have to suspect some kind of manipulation around the cut-off and could not use RDD to obtain valid results.
 

@@ -6,20 +6,102 @@ author: "Shashidhar Cheeti"
 library(tidyverse)
 library(ggplot2)
 ```
+
 ```{r}
 # Load the file
 abtest_online <- readRDS("Causal_Data_Science_Data/abtest_online.rds")
 # Create a Data Frame
-df=data.frame(abtest_online)
-glimpse(df)
+df1=data.frame(abtest_online)
 ```
+
 ```{r}
-# Use a plot to show covariate balance across groups
-ggplot(df, aes(x = chatbot, y = previous_visit, color = mobile_device)) +
-  geom_boxplot() +
-  labs(title = "Covariate Balance Check",
-       x = "Group (Control vs Treatment)",
-       y = "Number of Previous Visits")
+df<- data.frame(ip = abtest_online$ip, chatbot = abtest_online$chatbot)
+ip = abtest_online$ip
+df$ip <- substr(ip, nchar(ip), nchar(ip))
+df$chatbot <- as.integer(as.logical(df$chatbot))
+df$ipn = as.numeric(df$ip)
+df1<- data.frame(ip = df$ipn, chatbot = df$chatbot)
+X <- tibble(df1)
+X
 ```
+
+```{r}
+set.seed(123)  # Set a seed for reproducibility
+
+sss <- c(10, 50, 100, seq(500, 1000, 500))
+avg_tbl_ip_lst <- list()
+avg_tbl_chatbot_lst <- list()
+tbl_sampled_lst <- list()
+
+for (ss in sss) {
+  # Sample from the original data
+  df_sampled <- df1 %>% sample_n(ss)
+  
+  # Perform random assignment
+  df_sampled$D <- rbinom(ss, 1, 0.5)
+  
+  # Calculate average characteristics for ip
+  avg_tbl_ip <- df_sampled %>%
+    group_by(D) %>%
+    summarise(mean_ip = mean(ip)) %>%
+    ungroup %>%
+    add_column(sample_size = ss, variable = "ip") %>%
+    pivot_wider(names_from = D, names_prefix = "D_", values_from = mean_ip) %>%
+    mutate(delta_abs = abs(D_1 - D_0), delta_rel = delta_abs / D_0)
+  
+  avg_tbl_ip_lst[[paste(ss)]] <- avg_tbl_ip
+  
+  # Calculate average characteristics for chatbot
+  avg_tbl_chatbot <- df_sampled %>%
+    group_by(D) %>%
+    summarise(mean_chatbot = mean(chatbot)) %>%
+    ungroup %>%
+    add_column(sample_size = ss, variable = "chatbot") %>%
+    pivot_wider(names_from = D, names_prefix = "D_", values_from = mean_chatbot) %>%
+    mutate(delta_abs = abs(D_1 - D_0), delta_rel = delta_abs / D_0)
+  
+  avg_tbl_chatbot_lst[[paste(ss)]] <- avg_tbl_chatbot
+}
+```
+
+```{r}
+# Combine tables to one larger table
+avg_ip <- avg_tbl_ip_lst %>% bind_rows()
+avg_chatbot <- avg_tbl_chatbot_lst %>% bind_rows()
+avgs_tbl <- avg_ip %>% bind_rows(avg_chatbot)
+
+avgs_tbl
+```
+
+```{r}
+# Plot the Average Characteristics
+# Plot convergence
+ggplot(avgs_tbl, aes(x = sample_size, y = delta_abs, color = factor(variable))) +
+  geom_line() +
+  facet_wrap(~variable, scales = "free") +
+  labs(x = "Sample size", y = "Absolute difference") +
+  ggtitle("Absolute difference of characteristics\n between groups by sample size")
+
+```
+
+2. Regression
+```{r}
+df2<- data.frame(ip = X$ip, chatbot = X$chatbot, treatment = X$chatbot, outcome = avgs_tbl$delta_abs)
+```
+
+```{r}
+lm_ate <- lm(outcome ~ treatment, data = df2)
+summary(lm_ate)
+```
+
+3. Include interaction
+```{r}
+lm_mod <- lm(outcome ~ treatment * ip + treatment * chatbot, data = df2)
+summary(lm_mod)
+```
+
+
+
+
 
 

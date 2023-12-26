@@ -8,26 +8,33 @@ library(tidyverse)
 library(dplyr)
 library(ggdag)
 library(dagitty)
+library(ggrepel)
 ```
+
 ```{r}
 # Load the file
 rand_enc <- readRDS("Causal_Data_Science_Data/rand_enc.rds")
 # Create a Data Frame
 df=data.frame(rand_enc)
-head(df)
-glimpse(df)
-summary(df)
 ```
+
 1. Plot DAG
 ```{r}
 App_usuage <- dagify(
-  timespent ~ used_ftr,
-  used_ftr ~ rand_enc,
-  coords = list(x = c(timespent = 3,  used_ftr = 1, rand_enc = -1),
-                y = c(timespent = 0,  used_ftr = 0, rand_enc = 0))
+  Y ~ D,
+  D ~ Z,
+  coords = list(x = c(D = 0.5, Y = 2, Z = -1),
+                y = c(D = 0, Y = 0, Z = 0)),
+  labels = c("D" = "used_ftr",
+             "Y" = "timeSpent",
+             "Z" = "rand_enc")
 )
-# Plot DAG
-ggdag(App_usuage, use_labels = "name", text =  F) + theme_dag()
+
+ggdag(App_usuage, text = TRUE) +
+  geom_dag_point(color = "blue") +
+  geom_dag_text(color = "white") +
+  geom_dag_edges(edge_color = "black") +
+  geom_dag_label_repel(aes(label = label))
 ```
 From my understanding of these relationships from DAG, time spent would be the outcome which depends on the used new feature (used_ftr) would be the treatment variable and randomized encouragement trial (rand_enc) would be instrumental variable.
 
@@ -36,14 +43,23 @@ From my understanding of these relationships from DAG, time spent would be the o
 model_biased <- lm(time_spent ~ used_ftr, data = df)
 summary(model_biased)
 ```
+
 ```{r}
 model_naive <- lm(rand_enc ~ used_ftr, data = df)
 summary(model_naive)
 ```
 
+3.
+```{r}
+cor(df$rand_enc, df$used_ftr)
+```
+The positive correlation indicates that users who received the encouragement were more likely to use the new feature.
 
+4. Compute the IV estimate using 2SLS and compare it to the naive estimate
+```{r}
+library(estimatr)
+model_iv <- iv_robust(time_spent ~ used_ftr | rand_enc, data = df)
+summary(model_iv)
+```
 
-
-
-
-
+On Computing the IV estimate using 2SLS and comparing it to the naive estimate, the naive estimate for used_ftr (0.207943) seems to be biased downward.
